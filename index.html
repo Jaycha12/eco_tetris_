@@ -2,7 +2,11 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Tetris Final Clean</title>
+
+<!-- 🔥 줌 완전 방지 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<title>Tetris Mobile Final</title>
 
 <style>
 body{
@@ -13,33 +17,56 @@ body{
   justify-content:center;
   align-items:center;
   height:100vh;
+  touch-action:none;
+  overscroll-behavior:none;
 }
 
+/* 🔥 전체 2:1 */
 #container{
   display:flex;
   gap:20px;
 }
 
+/* GAME */
 canvas{
   background:black;
   border:2px solid #333;
+  touch-action:none;
 }
 
+/* RIGHT UI */
 #ui{
-  width:150px;
+  width:160px;
   display:flex;
   flex-direction:column;
-  gap:10px;
-}
-
-button{
-  font-size:16px;
-  padding:8px;
+  gap:12px;
 }
 
 #panel{
   border:1px solid #444;
   padding:10px;
+}
+
+/* HOLD */
+#holdBox{
+  border:1px solid #555;
+  padding:10px;
+  text-align:center;
+}
+
+/* 🔥 모바일 버튼 */
+#controls{
+  position:fixed;
+  bottom:10px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:8px;
+}
+
+button{
+  font-size:18px;
+  padding:10px 14px;
 }
 </style>
 </head>
@@ -48,8 +75,10 @@ button{
 
 <div id="container">
 
+  <!-- GAME -->
   <canvas id="game" width="300" height="600"></canvas>
 
+  <!-- UI -->
   <div id="ui">
 
     <div id="panel">
@@ -57,19 +86,24 @@ button{
       <div id="bestText">Best: 0</div>
     </div>
 
-    <canvas id="holdCanvas" width="120" height="120"></canvas>
-
-    <button onclick="reset()">RESTART</button>
-
-    <button onclick="moveLeft()">◀</button>
-    <button onclick="rotate()">↻</button>
-    <button onclick="moveRight()">▶</button>
-    <button onclick="moveDown()">▼</button>
-    <button onclick="hardDrop()">⬇</button>
-    <button onclick="hold()">HOLD</button>
+    <div id="holdBox">
+      HOLD
+      <canvas id="holdCanvas" width="120" height="120"></canvas>
+    </div>
 
   </div>
 
+</div>
+
+<!-- 🔥 모바일 컨트롤 -->
+<div id="controls">
+  <button onclick="moveLeft()">◀</button>
+  <button onclick="rotate()">↻</button>
+  <button onclick="moveRight()">▶</button>
+  <button onclick="moveDown()">▼</button>
+  <button onclick="hardDrop()">⬇</button>
+  <button onclick="hold()">HOLD</button>
+  <button onclick="reset()">RESTART</button>
 </div>
 
 <script>
@@ -103,8 +137,8 @@ const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
 function playSound(f,t){
   if(audioCtx.state==="suspended") audioCtx.resume();
 
-  const o=audioCtx.createOscillator();
-  const g=audioCtx.createGain();
+  let o=audioCtx.createOscillator();
+  let g=audioCtx.createGain();
 
   o.connect(g);
   g.connect(audioCtx.destination);
@@ -162,14 +196,12 @@ function drawSquare(x,y,color){
 function draw(){
   ctx.clearRect(0,0,300,600);
 
-  // board
   for(let r=0;r<ROW;r++){
     for(let c=0;c<COL;c++){
       if(board[r][c]) drawSquare(c,r,"white");
     }
   }
 
-  // piece
   if(piece){
     for(let r=0;r<piece.shape.length;r++){
       for(let c=0;c<piece.shape[r].length;c++){
@@ -233,7 +265,7 @@ function merge(){
   spawn();
 }
 
-// FIXED CLEAR LINE (핵심 수정 완료)
+// clear
 function clearLines(){
   let cleared=0;
 
@@ -246,10 +278,10 @@ function clearLines(){
     }
   }
 
-  if(cleared>0){
-    lines += cleared;              // 🔥 핵심 수정
-    score += cleared*100;
-    level = Math.floor(lines/10)+1;
+  if(cleared){
+    lines+=cleared;
+    score+=cleared*100;
+    level=Math.floor(lines/10)+1;
 
     playSound(600,0.1);
   }
