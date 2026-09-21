@@ -2,16 +2,44 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Eco Tetris</title>
+<title>Tetris Final</title>
 <style>
-body { background:black; text-align:center; color:white; }
-canvas { background:black; }
-button { font-size:18px; margin:5px; padding:10px; }
+body {
+  background:black;
+  text-align:center;
+  color:white;
+  margin:0;
+}
+
+canvas {
+  background:black;
+  touch-action:none;
+  display:block;
+  margin:0 auto;
+}
+
+button {
+  font-size:18px;
+  margin:5px;
+  padding:10px;
+}
+
+#ui {
+  margin-top:10px;
+}
 </style>
 </head>
+
 <body>
 
-<canvas id="game" width="300" height="600"></canvas><br>
+<canvas id="game" width="300" height="600"></canvas>
+
+<div id="ui">
+  <div id="scoreText">Score: 0</div>
+  <div id="bestText">Best: 0</div>
+</div>
+
+<br>
 
 <button onclick="moveLeft()">◀</button>
 <button onclick="rotate()">↻</button>
@@ -22,10 +50,18 @@ button { font-size:18px; margin:5px; padding:10px; }
 
 <script>
 const ROW=20, COL=10, SIZE=30;
+
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 
-let board=Array.from({length:ROW},()=>Array(COL).fill(null));
+let board, piece, holdPiece=null;
+let holdUsed=false;
+
+let score=0;
+let lines=0;
+let level=1;
+let bestScore=0;
+let gameOver=false;
 
 const SHAPES=[
  [[1,1,1,1]],
@@ -34,19 +70,60 @@ const SHAPES=[
  [[1,0],[1,0],[1,1]]
 ];
 
-let piece,newNext();
-let holdPiece=null, holdUsed=false;
+// 🔊 sound
+const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
 
-let score=0, lines=0, level=1;
+function playSound(freq,time){
+  if(audioCtx.state==="suspended") audioCtx.resume();
 
-function newNext(){
-  piece={
-    shape: SHAPES[Math.floor(Math.random()*SHAPES.length)],
-    x:3, y:0
+  const osc=audioCtx.createOscillator();
+  const gain=audioCtx.createGain();
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.frequency.value=freq;
+  gain.gain.value=0.1;
+
+  osc.start();
+  osc.stop(audioCtx.currentTime+time);
+}
+
+// reset
+function reset(){
+  board=Array.from({length:ROW},()=>Array(COL).fill(null));
+  score=0;
+  lines=0;
+  level=1;
+  holdPiece=null;
+  holdUsed=false;
+  gameOver=false;
+  spawn();
+}
+
+// piece
+function newPiece(){
+  return {
+    shape: JSON.parse(JSON.stringify(
+      SHAPES[Math.floor(Math.random()*SHAPES.length)]
+    )),
+    x:3,
+    y:0
   };
+}
+
+function spawn(){
+  piece=newPiece();
+
+  if(!canMove(0,0,piece.shape)){
+    gameOver=true;
+    if(score>bestScore) bestScore=score;
+  }
+
   holdUsed=false;
 }
 
+// draw
 function drawSquare(x,y,color){
   ctx.fillStyle=color;
   ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);
@@ -55,31 +132,64 @@ function drawSquare(x,y,color){
 }
 
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,300,600);
 
+  // board
   for(let r=0;r<ROW;r++){
     for(let c=0;c<COL;c++){
-      if(board[r][c]){
-        drawSquare(c,r,"white");
+      if(board[r][c]) drawSquare(c,r,"white");
+    }
+  }
+
+  // piece
+  if(piece){
+    for(let r=0;r<piece.shape.length;r++){
+      for(let c=0;c<piece.shape[r].length;c++){
+        if(piece.shape[r][c]){
+          drawSquare(piece.x+c,piece.y+r,"green");
+        }
       }
     }
   }
 
-  for(let r=0;r<piece.shape.length;r++){
-    for(let c=0;c<piece.shape[r].length;c++){
-      if(piece.shape[r][c]){
-        drawSquare(piece.x+c,piece.y+r,"green");
+  // HOLD (왼쪽 위로 고정)
+  ctx.strokeStyle="yellow";
+  ctx.strokeRect(0,0,120,120);
+
+  if(holdPiece){
+    for(let r=0;r<holdPiece.shape.length;r++){
+      for(let c=0;c<holdPiece.shape[r].length;c++){
+        if(holdPiece.shape[r][c]){
+          drawSquare(c,r+2,"red");
+        }
       }
     }
   }
+
+  // GAME OVER
+  if(gameOver){
+    ctx.fillStyle="rgba(0,0,0,0.7)";
+    ctx.fillRect(0,0,300,600);
+
+    ctx.fillStyle="white";
+    ctx.font="20px Arial";
+    ctx.fillText("GAME OVER",80,250);
+    ctx.fillText("Score: "+score,90,280);
+    ctx.fillText("Press R",110,310);
+  }
+
+  document.getElementById("scoreText").innerText="Score: "+score;
+  document.getElementById("bestText").innerText="Best: "+bestScore;
 }
 
+// collision
 function canMove(dx,dy,shape=piece.shape){
   for(let r=0;r<shape.length;r++){
     for(let c=0;c<shape[r].length;c++){
       if(shape[r][c]){
         let nx=piece.x+c+dx;
         let ny=piece.y+r+dy;
+
         if(nx<0||nx>=COL||ny>=ROW) return false;
         if(ny>=0&&board[ny][nx]) return false;
       }
@@ -88,6 +198,7 @@ function canMove(dx,dy,shape=piece.shape){
   return true;
 }
 
+// merge
 function merge(){
   for(let r=0;r<piece.shape.length;r++){
     for(let c=0;c<piece.shape[r].length;c++){
@@ -96,12 +207,16 @@ function merge(){
       }
     }
   }
+
+  playSound(200,0.1);
   clearLines();
-  newNext();
+  spawn();
 }
 
+// clear
 function clearLines(){
   let cleared=0;
+
   for(let r=ROW-1;r>=0;r--){
     if(board[r].every(v=>v)){
       board.splice(r,1);
@@ -110,54 +225,110 @@ function clearLines(){
       r++;
     }
   }
+
   if(cleared>0){
     lines+=cleared;
     score+=cleared*100;
     level=Math.floor(lines/10)+1;
+
+    playSound(600,0.1);
   }
 }
 
-function moveLeft(){ if(canMove(-1,0)) piece.x--; }
-function moveRight(){ if(canMove(1,0)) piece.x++; }
+// controls
+function moveLeft(){ if(!gameOver&&canMove(-1,0)) piece.x--; }
+function moveRight(){ if(!gameOver&&canMove(1,0)) piece.x++; }
+
 function moveDown(){
+  if(gameOver) return;
   if(canMove(0,1)) piece.y++;
   else merge();
 }
+
 function hardDrop(){
+  if(gameOver) return;
   while(canMove(0,1)) piece.y++;
   merge();
 }
 
 function rotate(){
+  if(gameOver) return;
+
   let newShape=piece.shape[0].map((_,i)=>
     piece.shape.map(row=>row[i]).reverse()
   );
+
   if(canMove(0,0,newShape)) piece.shape=newShape;
 }
 
 function hold(){
-  if(holdUsed) return;
+  if(gameOver||holdUsed) return;
 
   if(!holdPiece){
     holdPiece=piece;
-    newNext();
+    spawn();
   } else {
     let temp=piece;
     piece=holdPiece;
     holdPiece=temp;
-    piece.x=3; piece.y=0;
+    piece.x=3;
+    piece.y=0;
   }
+
   holdUsed=true;
 }
 
-function loop(){
-  moveDown();
+// restart
+document.addEventListener("keydown",e=>{
+  if(e.key.toLowerCase()==="r") reset();
+});
+
+// touch
+let sx=0, sy=0;
+
+canvas.addEventListener("touchstart",e=>{
+  sx=e.touches[0].clientX;
+  sy=e.touches[0].clientY;
+});
+
+canvas.addEventListener("touchend",e=>{
+  let dx=e.changedTouches[0].clientX-sx;
+  let dy=e.changedTouches[0].clientY-sy;
+
+  if(Math.abs(dx)>Math.abs(dy)){
+    if(dx>0) moveRight();
+    else moveLeft();
+  } else {
+    if(dy>0) moveDown();
+    else rotate();
+  }
+});
+
+// loop
+let dropCounter=0;
+let lastTime=0;
+
+function gameLoop(time=0){
+  if(!gameOver){
+    let delta=time-lastTime;
+    lastTime=time;
+    dropCounter+=delta;
+
+    let speed=Math.max(100,500-level*40);
+
+    if(dropCounter>speed){
+      moveDown();
+      dropCounter=0;
+    }
+  }
+
   draw();
-  setTimeout(loop,500-(level*40));
+  requestAnimationFrame(gameLoop);
 }
 
-newNext();
-loop();
+reset();
+gameLoop();
 </script>
+
 </body>
 </html>
