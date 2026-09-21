@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Eco Tetris</title>
+<style>
+body { background:black; text-align:center; color:white; }
+canvas { background:black; }
+button { font-size:18px; margin:5px; padding:10px; }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="300" height="600"></canvas><br>
+
+<button onclick="moveLeft()">◀</button>
+<button onclick="rotate()">↻</button>
+<button onclick="moveRight()">▶</button>
+<button onclick="moveDown()">▼</button>
+<button onclick="hardDrop()">⬇</button>
+<button onclick="hold()">HOLD</button>
+
+<script>
+const ROW=20, COL=10, SIZE=30;
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+
+let board=Array.from({length:ROW},()=>Array(COL).fill(null));
+
+const SHAPES=[
+ [[1,1,1,1]],
+ [[1,1],[1,1]],
+ [[1,1,1],[0,1,0]],
+ [[1,0],[1,0],[1,1]]
+];
+
+let piece,newNext();
+let holdPiece=null, holdUsed=false;
+
+let score=0, lines=0, level=1;
+
+function newNext(){
+  piece={
+    shape: SHAPES[Math.floor(Math.random()*SHAPES.length)],
+    x:3, y:0
+  };
+  holdUsed=false;
+}
+
+function drawSquare(x,y,color){
+  ctx.fillStyle=color;
+  ctx.fillRect(x*SIZE,y*SIZE,SIZE,SIZE);
+  ctx.strokeStyle="#222";
+  ctx.strokeRect(x*SIZE,y*SIZE,SIZE,SIZE);
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  for(let r=0;r<ROW;r++){
+    for(let c=0;c<COL;c++){
+      if(board[r][c]){
+        drawSquare(c,r,"white");
+      }
+    }
+  }
+
+  for(let r=0;r<piece.shape.length;r++){
+    for(let c=0;c<piece.shape[r].length;c++){
+      if(piece.shape[r][c]){
+        drawSquare(piece.x+c,piece.y+r,"green");
+      }
+    }
+  }
+}
+
+function canMove(dx,dy,shape=piece.shape){
+  for(let r=0;r<shape.length;r++){
+    for(let c=0;c<shape[r].length;c++){
+      if(shape[r][c]){
+        let nx=piece.x+c+dx;
+        let ny=piece.y+r+dy;
+        if(nx<0||nx>=COL||ny>=ROW) return false;
+        if(ny>=0&&board[ny][nx]) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function merge(){
+  for(let r=0;r<piece.shape.length;r++){
+    for(let c=0;c<piece.shape[r].length;c++){
+      if(piece.shape[r][c]){
+        board[piece.y+r][piece.x+c]=1;
+      }
+    }
+  }
+  clearLines();
+  newNext();
+}
+
+function clearLines(){
+  let cleared=0;
+  for(let r=ROW-1;r>=0;r--){
+    if(board[r].every(v=>v)){
+      board.splice(r,1);
+      board.unshift(Array(COL).fill(null));
+      cleared++;
+      r++;
+    }
+  }
+  if(cleared>0){
+    lines+=cleared;
+    score+=cleared*100;
+    level=Math.floor(lines/10)+1;
+  }
+}
+
+function moveLeft(){ if(canMove(-1,0)) piece.x--; }
+function moveRight(){ if(canMove(1,0)) piece.x++; }
+function moveDown(){
+  if(canMove(0,1)) piece.y++;
+  else merge();
+}
+function hardDrop(){
+  while(canMove(0,1)) piece.y++;
+  merge();
+}
+
+function rotate(){
+  let newShape=piece.shape[0].map((_,i)=>
+    piece.shape.map(row=>row[i]).reverse()
+  );
+  if(canMove(0,0,newShape)) piece.shape=newShape;
+}
+
+function hold(){
+  if(holdUsed) return;
+
+  if(!holdPiece){
+    holdPiece=piece;
+    newNext();
+  } else {
+    let temp=piece;
+    piece=holdPiece;
+    holdPiece=temp;
+    piece.x=3; piece.y=0;
+  }
+  holdUsed=true;
+}
+
+function loop(){
+  moveDown();
+  draw();
+  setTimeout(loop,500-(level*40));
+}
+
+newNext();
+loop();
+</script>
+</body>
+</html>
